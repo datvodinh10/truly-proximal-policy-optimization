@@ -53,19 +53,20 @@ class PPO(nn.Module):
         self.batch_rtgs             = torch.tensor(self.batch_rtgs,dtype=torch.float32).detach()
     
     def GAE(self,rewards,values,is_terminal,gamma,gae_lambda):
-        advantages = np.zeros_like(rewards)
-        last_advantage = 0
-        last_value = values[-1]
+        """General Advantage Estimation"""
+        advantages      = np.zeros_like(rewards)
+        last_advantage  = 0
+        last_value      = values[-1]
+
         for t in range(len(rewards)-1,-1,-1):
-            mask = 1.0 - is_terminal[t]
-            last_value = last_value * mask
-            last_advantage = last_advantage * mask
 
-            delta = rewards[t] + gamma * last_value - values[t]
-            last_advantage = delta + gamma * gae_lambda * last_advantage
-
-            advantages[t] = last_advantage
-            last_value = values[t]
+            mask            = 1.0 - is_terminal[t]
+            last_value      = last_value * mask
+            last_advantage  = last_advantage * mask
+            delta           = rewards[t] + gamma * last_value - values[t]
+            last_advantage  = delta + gamma * gae_lambda * last_advantage
+            advantages[t]   = last_advantage
+            last_value      = values[t]
         
         return advantages
     
@@ -84,9 +85,10 @@ class PPO(nn.Module):
     def BatchLoader(self,states,actions,logprobs,rtgs,mask,value,batch_size=64):
         """Batch Loader"""
         state,action,prob = states,actions,logprobs
-        n_samples = state.shape[0]
+        n_samples         = state.shape[0]
         # print(n_samples)
         index = torch.randperm(n_samples)
+
         state,action,prob,rtgs,mask,value= state[index],action[index],prob[index],rtgs[index],mask[index],value[index]
         for i in np.arange(0, n_samples, batch_size):
             begin, end = i, min(i + batch_size, n_samples)
@@ -115,16 +117,19 @@ class PPO(nn.Module):
         return total_loss
 
     def TrainModel(self):
+        """Training Model"""
         self.ToTensor()
         for i in range(self.num_epochs):
             for state,action,log_prob,rtgs,mask,value in self.BatchLoader(self.batch_states,self.batch_actions,self.batch_logprobs,self.batch_rtgs,self.batch_mask,self.batch_values,batch_size=self.batch_size):
+                
                 policy,value_new  = self.Forward(state)
-                value_new = value_new.squeeze(1)
-                value = value.squeeze(1)
-                prob1 = Categorical(logits=policy+ torch.log(mask))
-                log_prob_new = prob1.log_prob(action.view(1,-1)).squeeze()
-                entropy = prob1.entropy()
-                total_loss = self.CalculateTrulyLoss(value,value_new,entropy,log_prob,log_prob_new,rtgs)
+                value_new         = value_new.squeeze(1)
+                value             = value.squeeze(1)
+                prob1             = Categorical(logits=policy+ torch.log(mask))
+                log_prob_new      = prob1.log_prob(action.view(1,-1)).squeeze()
+                entropy           = prob1.entropy()
+                total_loss        = self.CalculateTrulyLoss(value,value_new,entropy,log_prob,log_prob_new,rtgs)
+                
                 if not torch.isnan(total_loss).any():
                     self.optimizer.zero_grad(set_to_none=True)
                     total_loss.mean().backward()
