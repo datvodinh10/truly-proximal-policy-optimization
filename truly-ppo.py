@@ -43,6 +43,14 @@ class PPO(nn.Module):
         self.batch_values           = []
         self.batch_mask             = []
         self.batch_rtgs             = []
+
+    def ToTensor(self):
+        self.batch_states           = torch.tensor(self.batch_states,dtype=torch.float32).detach()
+        self.batch_actions          = torch.tensor(self.batch_actions,dtype=torch.float32).detach()
+        self.batch_log_probs        = torch.tensor(self.batch_log_probs,dtype=torch.float32).detach()
+        self.batch_values           = torch.tensor(self.batch_values,dtype=torch.float32).detach()
+        self.batch_mask             = torch.tensor(self.batch_mask,dtype=torch.float32).detach()
+        self.batch_rtgs             = torch.tensor(self.batch_rtgs,dtype=torch.float32).detach()
     
     def GAE(self,rewards,values,is_terminal,gamma,gae_lambda):
         advantages = np.zeros_like(rewards)
@@ -106,8 +114,23 @@ class PPO(nn.Module):
         total_loss      = actor_loss + self.critic_coef * critic_loss - self.entropy_coef * entropy
         return total_loss
 
-    def TrainModel(self,num_games=100,level=0):
-        pass
+    def TrainModel(self):
+        self.ToTensor()
+        for i in range(self.num_epochs):
+            for state,action,log_prob,rtgs,mask,value in self.BatchLoader(self.batch_states,self.batch_actions,self.batch_logprobs,self.batch_rtgs,self.batch_mask,self.batch_values,batch_size=self.batch_size):
+                policy,value_new  = self.Forward(state)
+                value_new = value_new.squeeze(1)
+                value = value.squeeze(1)
+                prob1 = Categorical(logits=policy+ torch.log(mask))
+                log_prob_new = prob1.log_prob(action.view(1,-1)).squeeze()
+                entropy = prob1.entropy()
+                total_loss = self.CalculateTrulyLoss(value,value_new,entropy,log_prob,log_prob_new,rtgs)
+                if not torch.isnan(total_loss).any():
+                    self.optimizer.zero_grad(set_to_none=True)
+                    total_loss.mean().backward()
+                    nn.utils.clip_grad_norm_(self.parameters(),0.5)
+                    self.optimizer.step()
+
     
     
 
