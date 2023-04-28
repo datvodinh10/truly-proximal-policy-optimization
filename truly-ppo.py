@@ -43,7 +43,15 @@ class PPO(nn.Module):
         self.batch_values           = []
         self.batch_mask             = []
         self.batch_rtgs             = []
-
+    
+    def AddData(self,state,action,log_prob,rtgs,mask,value):
+        self.batch_states.append(state)
+        self.batch_actions.append(action)
+        self.batch_log_probs.append(log_prob)
+        self.batch_values.append(value)
+        self.batch_mask.append(mask)
+        self.batch_rtgs.append(rtgs)
+        
     def ToTensor(self):
         self.batch_states           = torch.tensor(self.batch_states,dtype=torch.float32).detach()
         self.batch_actions          = torch.tensor(self.batch_actions,dtype=torch.float32).detach()
